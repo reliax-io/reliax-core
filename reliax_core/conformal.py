@@ -33,6 +33,17 @@ class ConformalCalibrator:
         n_ge = self.n - idx
         return (n_ge + 1) / (self.n + 1)
 
+    def label_p_values(self, probs: np.ndarray) -> list[float]:
+        """Conformal p-value of every label, in label order."""
+        return [self.p_value(float(p)) for p in probs]
+
+    def confidence(self, probs: np.ndarray) -> float:
+        """How decisively the other labels are excluded: 1 minus the second-largest
+        label p-value. A signal for the queue, not a guarantee (the ranking it
+        induces coincides with the model's own confidence for a binary model)."""
+        pv = sorted(self.label_p_values(probs), reverse=True)
+        return 1.0 if len(pv) < 2 else 1.0 - pv[1]
+
     def empirical_coverage(self, probs: np.ndarray, labels: np.ndarray, alpha: float) -> float:
         q = self.qhat(alpha)
         n = len(labels)
