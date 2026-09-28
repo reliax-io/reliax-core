@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reliax-core"
+version = "0.2.0"
+description = "Method components of the Reliax reliability envelope: split and Mondrian conformal sets, Venn-Abers brackets, a conformal test martingale, the credibility p-value, the fast-loop evaluator with route trace and certificate reasons, kNN distance, PSI, an error auditor, subjective-logic fusion and calibration opinions. Pure functions, no I/O."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Reliax" },
+]
+keywords = [
+    "conformal-prediction",
+    "venn-abers",
+    "test-martingale",
+    "uncertainty-quantification",
+    "calibration",
+    "drift-detection",
+    "model-risk",
+    "credit-risk",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.26",
+    "scikit-learn>=1.4",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://reliax.io"
+Source = "https://github.com/reliax-io/reliax-core"
+Issues = "https://github.com/reliax-io/reliax-core/issues"
+Changelog = "https://github.com/reliax-io/reliax-core/blob/main/CHANGELOG.md"
+Evaluation = "https://github.com/reliax-io/reliax-evaluation"
+
+[tool.hatch.build.targets.wheel]
+packages = ["reliax_core"]
+
+[tool.hatch.build.targets.sdist]
+include = ["reliax_core", "tests", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
