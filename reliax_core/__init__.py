@@ -15,7 +15,7 @@ inputs give the same route. The others are signals and say so in their module
 docstrings. The Reliax platform (calibration builder, reliability engine,
 queues, audit service, API) holds all state and is not part of this package.
 """
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 from .conformal import ConformalCalibrator
 from .venn_abers import VennAbersCalibrator

@@ -12,11 +12,12 @@ pins this package.
 
 ## Install
 
-Not on PyPI yet. Install from the tagged release:
+```
+pip install reliax-core
+```
 
-```
-pip install "reliax-core @ git+https://github.com/reliax-io/reliax-core.git@v0.2.0"
-```
+Or from a tagged release on GitHub:
+`pip install "reliax-core @ git+https://github.com/reliax-io/reliax-core.git@v0.2.0"`.
 
 The import name is `reliax_core`. Python 3.10 or later; numpy and
 scikit-learn are the only dependencies.

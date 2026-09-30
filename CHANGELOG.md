@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 (30 September 2026)
+
+Packaging and documentation only; no code change. First release on PyPI
+(`pip install reliax-core`). The publish workflow runs the tests before
+building.
+
 ## 0.2.0 (28 September 2026)
 
 Added `credibility.py` (`CredibilityReference`, `credibility_p_value`: the

@@ -33,6 +33,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Test before building
+        run: |
+          python -m pip install -e ".[test]"
+          python -m pytest -q
+
       - name: Build
         run: |
           python -m pip install --upgrade build
