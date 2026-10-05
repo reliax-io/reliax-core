@@ -42,33 +42,49 @@ X_cal, y_cal = X[2000:], y[2000:]                              # a held-out cali
 sets = ConformalCalibrator(model.predict_proba(X_cal), y_cal)  # the coverage guarantee
 detector = KNNOODDetector().fit(X_cal)
 credibility = CredibilityReference.from_detector(detector)     # "does the guarantee cover this input?"
-policy = Policy(alpha=0.05)                                    # the thresholds you set
+policy = Policy(alpha=0.05, credibility_extreme=0.005)         # the thresholds you set
 
 def route(x):
     env = Envelope(credibility=credibility.p_value(detector.distance(x)),
                    prediction_set=sets.prediction_set(model.predict_proba([x])[0], alpha=policy.alpha))
     d = evaluate(policy, env)
-    print(f"{d.route:6} {d.reason_codes[0]:14} {d.trace_text()}")
+    print(f"{d.route:6} {'; '.join(d.certificate_reasons)}")
 
-route(np.array([2.0, -1.5, 1.0, 0.5]))     # a clear case: one label left standing
-route(X[0])                                # a borderline case: both labels left standing
+route(np.array([2.0, -1.5, 1.0, 0.5]))     # a clear case
+route(X[0])                                # a borderline case
 route(np.array([40.0, 40.0, 40.0, 40.0]))  # nothing like the calibration data
 ```
 
 ```
-ALLOW  CERTIFIED      Route trace: row 6 matched, so every check above it passed.
-REVIEW SET_AMBIGUOUS  Route trace: row 3 matched, so every check above it passed.
-BLOCK  OOD_EXTREME    Route trace: row 2 matched, so every check above it passed.
+ALLOW  input within the scope of the guarantee; one label left standing
+REVIEW 2 labels left standing: the model cannot separate them for this case
+BLOCK  input outside the scope of the guarantee: credibility 0.001 below the extreme floor 0.005
 ```
 
-The first input passes every check. The second is covered by the guarantee but
-both labels are left standing at the 95% level, so a person decides with the
-model's answer in front of them. The third sits farther from the calibration
-data than any calibration row does, so the guarantee says nothing about it and
-a person decides without the model. `Policy` holds the thresholds a deployer
-sets; `Envelope` holds the certified quantities of one decision; `evaluate`
-returns the route, the row that matched, the route trace and the reason codes.
-Every value is deterministic, so the same inputs give the same route later.
+The route comes from six checks read in a fixed order; the first that fails
+sets the route, and the record keeps the list of checks read on the way (the
+route trace).
+
+1. Is the guarantee active on this segment? No drift alarm, no model or
+   calibration-set mismatch. Otherwise BLOCK.
+2. Is the input covered by the guarantee? Credibility at or above the policy
+   floor. Below the floor REVIEW; below the extreme floor BLOCK.
+3. Did the prediction set single out one label? Otherwise REVIEW.
+4. Is the calibrated bracket's upper end within your approve ceiling?
+   Otherwise REVIEW.
+5. Is the stream free of a drift WATCH? Otherwise REVIEW, if the policy says so.
+6. Otherwise ALLOW.
+
+The first input passes all six. The second is covered by the guarantee but
+both labels are left standing at the 95% level, so check 3 sends it to a
+person with the model's answer in front of them. The third sits farther from
+the calibration data than any calibration row does, so check 2 fires at the
+extreme floor and a person decides without the model.
+
+`Policy` holds the thresholds a deployer sets; `Envelope` holds the certified
+quantities of one decision; `evaluate` returns the route, the check that
+decided it, the route trace, the reason codes and the reasons in words. Every
+value is deterministic, so the same inputs give the same route later.
 
 The same steps on a stream add `ConformalMartingale` for the drift test,
 `VennAbersCalibrator` for the bracket and `MondrianConformal` for per-segment
@@ -146,22 +162,16 @@ referral.
 
 ## The routing rule
 
-`evaluate(policy, envelope)` reads six rows in this order and stops at the
-first that fires:
-
-1. The guarantee is not active on this segment (drift ALARM, model or calibration-set
-   mismatch): the policy's `invalid_action`, BLOCK by default.
-2. The credibility p-value is below the policy floor: `ood_action`, REVIEW by
-   default; below the extreme floor: BLOCK.
-3. The prediction set is not a singleton: REVIEW.
-4. The bracket is on, the prediction is on the approve side and the bracket's
-   upper end is above the policy ceiling: REVIEW.
-5. WATCH on this segment's stream: REVIEW if the policy says so.
-6. Otherwise: ALLOW.
-
-The result carries the row, a trace of every row read, the reason codes and
-the certificate reasons in words. The criticality score orders the REVIEW
-queue and is never a condition.
+`evaluate(policy, envelope)` runs the six checks listed under Quick start, in
+that order, and stops at the first that fails. The actions are policy fields:
+check 1 routes to `invalid_action` (BLOCK by default), check 2 to `ood_action`
+below `credibility_floor` (REVIEW by default) and to `ood_extreme_action`
+below `credibility_extreme` (BLOCK by default), check 4 reads
+`pd_upper_allow_max` and is skipped when the bracket is off or the prediction
+is not on the approve side, and check 5 routes to REVIEW only when
+`watch_action` is REVIEW. The result carries the check that decided, a trace
+of every check read, the reason codes and the certificate reasons in words.
+The criticality score orders the REVIEW queue and is never a condition.
 
 ## Not in this package
 
