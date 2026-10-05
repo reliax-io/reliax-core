@@ -97,7 +97,7 @@ in the evaluation repository.
 - Coverage is a property of the procedure over exchangeable data, not a
   probability about any one prediction. Distribution-free per-instance
   conditional coverage is not attainable (Barber, Candès, Ramdas and
-  Tibshirani, 2021), and this package does not claim it. No output of this
+  Tibshirani, 2021). No output of this
   package is a probability that a given decision is right; how the outputs
   may and may not be read is set out once, in
   [Read this correctly](https://github.com/reliax-io#read-this-correctly).
@@ -158,7 +158,7 @@ tickets, signed policy versions), review queues, the audit service, the
 readable view and the dashboard. The certificate format, the hash chain and
 the verifier are [`reliax-certificate`](https://github.com/reliax-io/reliax-certificate);
 the client is [`reliax-sdk`](https://github.com/reliax-io/reliax-python).
-Not yet written, and said so: differentially private noise on the sorted
+Not yet written: differentially private noise on the sorted
 calibration scores (coverage is proven for sets; the p-values are roadmap), and
 the surrogate scorer for replayable reason codes.
 
