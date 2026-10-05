@@ -180,7 +180,7 @@ reliability engine (drift state per segment, outcome verdicts, recalibration
 tickets, signed policy versions), review queues, the audit service, the
 readable view and the dashboard. The certificate format, the hash chain and
 the verifier are [`reliax-certificate`](https://github.com/reliax-io/reliax-certificate);
-the client is [`reliax-sdk`](https://github.com/reliax-io/reliax-python).
+the client is [`reliax-sdk`](https://github.com/reliax-io/reliax-sdk).
 Not yet written: differentially private noise on the sorted
 calibration scores (coverage is proven for sets; the p-values are roadmap), and
 the surrogate scorer for replayable reason codes.
