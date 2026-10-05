@@ -11,7 +11,7 @@ route, row, trace and reasons, so a verifier can replay the route from the
 record alone, without the platform.
 
     1  guarantee not active on this segment (ALARM on its stream, model or
-       cohort mismatch, cohort expired)               -> policy.invalid_action (BLOCK)
+       calibration-set mismatch or expiry)           -> policy.invalid_action (BLOCK)
     2  credibility p-value below the policy floor     -> policy.ood_action (REVIEW)
        credibility below the extreme floor            -> policy.ood_extreme_action (BLOCK)
     3  prediction set not a singleton                 -> REVIEW (empty or ambiguous)
