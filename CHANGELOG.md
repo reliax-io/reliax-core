@@ -18,6 +18,18 @@ The composite score is described as the product shows it: the criticality
 score is 100 minus it. No change to any frozen component or to any number in
 the evaluation.
 
+## Provenance
+
+Until 25 September 2026 this code was the `reliax_core/` directory of
+reliax-evaluation, and its history is kept here. The pre-registration in that
+repository names commits of that repository as the frozen method code; those
+commits remain there. Version 0.1.0 is the code as it stood on 25 September
+2026, with no numerical change since the freeze of 13 September 2026. The one
+change since is wording in the certificate line written by
+`CalibrationTrust.certificate_line` (24 September 2026). Version 0.2.0 adds
+the credibility p-value and the evaluator and changes nothing in the frozen
+components.
+
 ## 0.1.0 (25 September 2026)
 
 First release as a package. The code is the `reliax_core/` directory of
