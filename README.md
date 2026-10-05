@@ -17,12 +17,19 @@ pip install reliax-core
 ```
 
 Or from a tagged release on GitHub:
-`pip install "reliax-core @ git+https://github.com/reliax-io/reliax-core.git@v0.2.0"`.
+`pip install "reliax-core @ git+https://github.com/reliax-io/reliax-core.git@v0.2.1"`.
 
 The import name is `reliax_core`. Python 3.10 or later; numpy and
 scikit-learn are the only dependencies.
 
 ## What is in it
+
+Every output carries one of three classes. A **guarantee** is a theorem that
+holds on exchangeable data at the stated level, with no assumption on the
+model or on the data distribution. An **exact** output is recomputed bit for
+bit from its inputs, so a verifier can replay it from the record. A **signal**
+is a measurement without such a proof. Routing rules should read guarantees;
+signals order the review queue and inform recalibration.
 
 | Module | What it computes | Class of output |
 |---|---|---|
@@ -31,21 +38,17 @@ scikit-learn are the only dependencies.
 | `venn_abers.py` | `VennAbersCalibrator`: inductive Venn-Abers bracket `[p0, p1]` around the base model's stated probability (Vovk and Petej, 2014). One of the two isotonic predictors is calibrated; the width of the bracket is itself a signal. | guarantee |
 | `martingale.py` | `ConformalMartingale`: conformal test martingale on a label-free nonconformity score, a mixture over betting exponents; anytime-valid, WATCH at 20, ALARM at 100 (Vovk, Nouretdinov and Gammerman, 2003). | guarantee |
 | `credibility.py` | `CredibilityReference`, `credibility_p_value`: the label-free conformal p-value of an input's kNN distance against the calibration distances, `(#{a_i >= a} + 1) / (n + 1)`. Valid under exchangeability; answers "does the guarantee cover this input?". Deterministic, so it replays. | guarantee |
-| `evaluator.py` | `Policy`, `Envelope`, `evaluate`: the fast-loop evaluator, six rows in a fixed order, first match wins, on certified quantities only; returns the route, the row, the route trace, the reason codes and the certificate reasons in words. | exact |
+| `evaluator.py` | `Policy`, `Envelope`, `evaluate`: the per-decision routing rule, six rows in a fixed order, first match wins, on certified quantities only; returns the route, the row, the route trace (every row read before the match), the reason codes and the certificate reasons in words. | exact |
 | `ood.py` | `KNNOODDetector`: distance to the k nearest calibration rows in standardised feature space, as a percentile of the calibration set's own leave-one-out distances. | signal |
 | `auditor.py` | `ErrorAuditor`: a second model, trained on the calibration split, that predicts when the base model is wrong. | signal |
 | `drift.py` | `PSIMonitor`: population stability index per feature and on the score, over a rolling window. | signal |
 | `scoring.py` | `reliability_score`: the 0 to 100 reliability composite. The product shows it as the criticality score, 100 minus this value, so higher means a person should look sooner. | signal |
 | `sl_fusion.py` | `fuse_signals`, `averaging_fusion`: subjective-logic fusion of the signals into (belief, disbelief, uncertainty). | signal |
 | `fairness.py` | `ImpactMonitor`: rolling ALLOW rate per segment and the four-fifths ratio. | signal |
-| `calibration_trust.py` | `CalibrationTrust`: calibration opinion per (segment x score-bin) cell and fused per segment. A closed form of the binned calibration error and the sample size, with a Hoeffding envelope on the disbelief. Feeds the slow loop; never a route. | signal |
+| `calibration_trust.py` | `CalibrationTrust`: calibration opinion per (segment x score-bin) cell and fused per segment. A closed form of the binned calibration error and the sample size, with a Hoeffding envelope on the disbelief. Informs recalibration; never a route. | signal |
 
-A guarantee is a theorem that holds on exchangeable data at the stated level,
-with no assumption on the model or on the data distribution. An exact output
-is recomputed bit for bit from its inputs, so a verifier can replay it from
-the record. A signal is a measurement without such a proof. Routing rules should read guarantees;
-signals order the review queue and inform the slow loop. The theory behind
-the calibration opinion, with its finite-sample propositions, is in
+The theory behind the calibration opinion, with its finite-sample
+propositions, is in
 [CALIBRATION_TRUST.md](https://github.com/reliax-io/reliax-evaluation/blob/main/CALIBRATION_TRUST.md)
 in the evaluation repository.
 
@@ -82,8 +85,10 @@ Every number in the whitepaper and the deck is produced by a runner in
 [reliax-evaluation](https://github.com/reliax-io/reliax-evaluation) that
 imports this package, and every results file is committed there, including
 the negative ones: under a severe distribution shift the fused score ranks
-worse than referring cases at random, and the earlier 2x bar was withdrawn
-once that was measured.
+worse than referring cases at random. The pre-registered target of twice the
+wrong-approval capture of model confidence was withdrawn once that was
+measured, because under that shift confidence itself falls below random
+referral.
 
 ## The routing rule
 
