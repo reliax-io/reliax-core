@@ -149,7 +149,7 @@ referral.
 `evaluate(policy, envelope)` reads six rows in this order and stops at the
 first that fires:
 
-1. The guarantee is not active on this segment (drift ALARM, model or cohort
+1. The guarantee is not active on this segment (drift ALARM, model or calibration-set
    mismatch): the policy's `invalid_action`, BLOCK by default.
 2. The credibility p-value is below the policy floor: `ood_action`, REVIEW by
    default; below the extreme floor: BLOCK.
