@@ -1,14 +1,16 @@
 # reliax-core
 
-Method components of the Reliax reliability envelope, as a plain Python
-package. Pure, stateless functions and small classes: no I/O, no
-configuration, no network. Apache-2.0.
+The method behind the Reliax certificate, as a plain Python package: conformal
+prediction sets, the calibrated bracket, the drift test, the credibility
+p-value and the routing rule. Pure, stateless functions and small classes: no
+I/O, no configuration, no network. Apache-2.0.
 
 This is the code behind every number in the Reliax whitepaper. The evaluation
 that produces those numbers, with the datasets, the runners, the
 pre-registration and the negative results, is
 [reliax-evaluation](https://github.com/reliax-io/reliax-evaluation), which
-pins this package.
+pins this package. Terms used here are defined in the
+[glossary](https://github.com/reliax-io#terms).
 
 ## Install
 
@@ -21,6 +23,44 @@ Or from a tagged release on GitHub:
 
 The import name is `reliax_core`. Python 3.10 or later; numpy and
 scikit-learn are the only dependencies.
+
+## Quick start
+
+Train a model as usual, hold out a calibration split, and route one decision.
+Nothing here needs the Reliax platform.
+
+```python
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+from reliax_core import ConformalCalibrator, KNNOODDetector, CredibilityReference, Policy, Envelope, evaluate
+
+rng = np.random.default_rng(0)
+X = rng.normal(size=(3000, 4)); y = (X @ [1.2, -0.8, 0.5, 0.3] + rng.normal(size=3000) > 0).astype(int)
+model = LogisticRegression().fit(X[:2000], y[:2000])          # your model, trained as usual
+X_cal, y_cal = X[2000:], y[2000:]                              # a held-out calibration split
+
+sets = ConformalCalibrator(model.predict_proba(X_cal), y_cal)  # the coverage guarantee
+detector = KNNOODDetector().fit(X_cal)
+credibility = CredibilityReference.from_detector(detector)     # "does the guarantee cover this input?"
+
+x = X[0]
+env = Envelope(credibility=credibility.p_value(detector.distance(x)),
+               prediction_set=sets.prediction_set(model.predict_proba([x])[0], alpha=0.05))
+decision = evaluate(Policy(alpha=0.05), env)
+print(decision.route, decision.reason_codes, decision.trace_text())
+# REVIEW ('SET_AMBIGUOUS',) Route trace: row 3 matched, so every check above it passed.
+```
+
+Both labels were left standing for this input at the 95% level, so the rule
+sends it to a person. `Policy` holds the thresholds a deployer sets; `Envelope`
+holds the certified quantities of one decision; `evaluate` returns the route,
+the row that matched, the route trace and the reason codes. Every value is
+deterministic, so the same inputs give the same route later.
+
+The same steps on a stream add `ConformalMartingale` for the drift test,
+`VennAbersCalibrator` for the bracket and `MondrianConformal` for per-segment
+coverage; the signatures are in the table below and the full use is in the
+runners of reliax-evaluation.
 
 ## What is in it
 
@@ -57,7 +97,10 @@ in the evaluation repository.
 - Coverage is a property of the procedure over exchangeable data, not a
   probability about any one prediction. Distribution-free per-instance
   conditional coverage is not attainable (Barber, Candès, Ramdas and
-  Tibshirani, 2021), and this package does not claim it.
+  Tibshirani, 2021), and this package does not claim it. No output of this
+  package is a probability that a given decision is right; how the outputs
+  may and may not be read is set out once, in
+  [Read this correctly](https://github.com/reliax-io#read-this-correctly).
 - Per-segment coverage holds for each declared segment that has its own
   calibration rows.
 - The martingale's false-alarm bound holds when calibration and production
@@ -67,8 +110,6 @@ in the evaluation repository.
   tripwire is valid on dense numeric inputs and on sparse inputs with a large
   calibration set. A distance that is exchangeable by construction on sparse
   inputs is pre-registered work, not in this release.
-- Nothing here is a probability that a given decision is right, and no output
-  of this package should be shown as a percentage next to a decision.
 
 ## Determinism
 
@@ -93,16 +134,21 @@ referral.
 ## The routing rule
 
 `evaluate(policy, envelope)` reads six rows in this order and stops at the
-first that fires: the guarantee is not active on this segment (ALARM, model or
-cohort mismatch) → the policy's `invalid_action`, BLOCK by default; the
-credibility p-value is below the policy floor → `ood_action`, REVIEW by
-default, or below the extreme floor → BLOCK; the prediction set is not a
-singleton → REVIEW; the bracket is on, the prediction is on the approve side
-and its upper end is above the policy ceiling → REVIEW; WATCH on the stream →
-REVIEW if the policy says so; otherwise ALLOW. The result carries the row,
-a trace of every row read, the reason codes and the certificate reasons in
-words. BLOCK never means decline: a person decides. The criticality score
-orders the REVIEW queue and is never a condition.
+first that fires:
+
+1. The guarantee is not active on this segment (drift ALARM, model or cohort
+   mismatch): the policy's `invalid_action`, BLOCK by default.
+2. The credibility p-value is below the policy floor: `ood_action`, REVIEW by
+   default; below the extreme floor: BLOCK.
+3. The prediction set is not a singleton: REVIEW.
+4. The bracket is on, the prediction is on the approve side and the bracket's
+   upper end is above the policy ceiling: REVIEW.
+5. WATCH on this segment's stream: REVIEW if the policy says so.
+6. Otherwise: ALLOW.
+
+The result carries the row, a trace of every row read, the reason codes and
+the certificate reasons in words. The criticality score orders the REVIEW
+queue and is never a condition.
 
 ## Not in this package
 
@@ -116,17 +162,9 @@ Not yet written, and said so: differentially private noise on the sorted
 calibration scores (coverage is proven for sets; the p-values are roadmap), and
 the surrogate scorer for replayable reason codes.
 
-## Where this code comes from
-
-Until 25 September 2026 this code was the `reliax_core/` directory of
-reliax-evaluation, and its history is kept here. The pre-registration in that
-repository names commits of that repository as the frozen method code; those
-commits remain there. Version 0.1.0 is the code as it stood on 25 September
-2026, with no numerical change since the freeze of 13 September 2026. The one
-change since is wording in the certificate line written by
-`CalibrationTrust.certificate_line` (24 September 2026). Version 0.2.0 adds
-the credibility p-value and the evaluator and changes nothing in the frozen
-components.
+This package was extracted from reliax-evaluation on 25 September 2026 with
+its history; the pre-registered freeze commits remain in that repository. The
+dates are in [CHANGELOG.md](CHANGELOG.md).
 
 ## Development
 
