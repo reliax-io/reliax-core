@@ -26,8 +26,8 @@ scikit-learn are the only dependencies.
 
 ## Quick start
 
-Train a model as usual, hold out a calibration split, and route one decision.
-Nothing here needs the Reliax platform.
+Train a model as usual, hold out a calibration split, and route three
+decisions. Nothing here needs the Reliax platform.
 
 ```python
 import numpy as np
@@ -42,20 +42,33 @@ X_cal, y_cal = X[2000:], y[2000:]                              # a held-out cali
 sets = ConformalCalibrator(model.predict_proba(X_cal), y_cal)  # the coverage guarantee
 detector = KNNOODDetector().fit(X_cal)
 credibility = CredibilityReference.from_detector(detector)     # "does the guarantee cover this input?"
+policy = Policy(alpha=0.05)                                    # the thresholds you set
 
-x = X[0]
-env = Envelope(credibility=credibility.p_value(detector.distance(x)),
-               prediction_set=sets.prediction_set(model.predict_proba([x])[0], alpha=0.05))
-decision = evaluate(Policy(alpha=0.05), env)
-print(decision.route, decision.reason_codes, decision.trace_text())
-# REVIEW ('SET_AMBIGUOUS',) Route trace: row 3 matched, so every check above it passed.
+def route(x):
+    env = Envelope(credibility=credibility.p_value(detector.distance(x)),
+                   prediction_set=sets.prediction_set(model.predict_proba([x])[0], alpha=policy.alpha))
+    d = evaluate(policy, env)
+    print(f"{d.route:6} {d.reason_codes[0]:14} {d.trace_text()}")
+
+route(np.array([2.0, -1.5, 1.0, 0.5]))     # a clear case: one label left standing
+route(X[0])                                # a borderline case: both labels left standing
+route(np.array([40.0, 40.0, 40.0, 40.0]))  # nothing like the calibration data
 ```
 
-Both labels were left standing for this input at the 95% level, so the rule
-sends it to a person. `Policy` holds the thresholds a deployer sets; `Envelope`
-holds the certified quantities of one decision; `evaluate` returns the route,
-the row that matched, the route trace and the reason codes. Every value is
-deterministic, so the same inputs give the same route later.
+```
+ALLOW  CERTIFIED      Route trace: row 6 matched, so every check above it passed.
+REVIEW SET_AMBIGUOUS  Route trace: row 3 matched, so every check above it passed.
+BLOCK  OOD_EXTREME    Route trace: row 2 matched, so every check above it passed.
+```
+
+The first input passes every check. The second is covered by the guarantee but
+both labels are left standing at the 95% level, so a person decides with the
+model's answer in front of them. The third sits farther from the calibration
+data than any calibration row does, so the guarantee says nothing about it and
+a person decides without the model. `Policy` holds the thresholds a deployer
+sets; `Envelope` holds the certified quantities of one decision; `evaluate`
+returns the route, the row that matched, the route trace and the reason codes.
+Every value is deterministic, so the same inputs give the same route later.
 
 The same steps on a stream add `ConformalMartingale` for the drift test,
 `VennAbersCalibrator` for the bracket and `MondrianConformal` for per-segment
@@ -97,7 +110,7 @@ in the evaluation repository.
 - Coverage is a property of the procedure over exchangeable data, not a
   probability about any one prediction. Distribution-free per-instance
   conditional coverage is not attainable (Barber, Candès, Ramdas and
-  Tibshirani, 2021), and this package does not claim it. No output of this
+  Tibshirani, 2021). No output of this
   package is a probability that a given decision is right; how the outputs
   may and may not be read is set out once, in
   [Read this correctly](https://github.com/reliax-io#read-this-correctly).
@@ -136,7 +149,7 @@ referral.
 `evaluate(policy, envelope)` reads six rows in this order and stops at the
 first that fires:
 
-1. The guarantee is not active on this segment (drift ALARM, model or cohort
+1. The guarantee is not active on this segment (drift ALARM, model or calibration-set
    mismatch): the policy's `invalid_action`, BLOCK by default.
 2. The credibility p-value is below the policy floor: `ood_action`, REVIEW by
    default; below the extreme floor: BLOCK.
@@ -158,7 +171,7 @@ tickets, signed policy versions), review queues, the audit service, the
 readable view and the dashboard. The certificate format, the hash chain and
 the verifier are [`reliax-certificate`](https://github.com/reliax-io/reliax-certificate);
 the client is [`reliax-sdk`](https://github.com/reliax-io/reliax-python).
-Not yet written, and said so: differentially private noise on the sorted
+Not yet written: differentially private noise on the sorted
 calibration scores (coverage is proven for sets; the p-values are roadmap), and
 the surrogate scorer for replayable reason codes.
 
