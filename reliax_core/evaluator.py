@@ -1,17 +1,17 @@
-"""Fast-loop evaluator: routing on certified quantities only.
+"""The routing rules: routing on certified quantities only.
 
-Six rows, read in a fixed order; the first row that fires sets the route
-(technical documentation, section 2.11; envelope schema v16). Every row reads a
+Six rules, read in a fixed order; the first that fires sets the route
+(technical documentation, section 2.11; envelope schema v18). Every rule reads a
 certified quantity or a threshold from the policy, never an advisory signal.
-The result carries the row that matched, a trace of every row above it, the
+The result carries the rule that fired, a trace of every rule read, the
 machine reason codes and the certificate reasons in words.
 
 Class of output: exact. The same envelope and the same policy give the same
-route, row, trace and reasons, so a verifier can replay the route from the
+route, rule, trace and reasons, so a verifier can replay the route from the
 record alone, without the platform.
 
     1  guarantee not active on this segment (ALARM on its stream, model or
-       cohort mismatch, cohort expired)               -> policy.invalid_action (BLOCK)
+       calibration-set mismatch or expiry)           -> policy.invalid_action (BLOCK)
     2  credibility p-value below the policy floor     -> policy.ood_action (REVIEW)
        credibility below the extreme floor            -> policy.ood_extreme_action (BLOCK)
     3  prediction set not a singleton                 -> REVIEW (empty or ambiguous)
@@ -21,9 +21,13 @@ record alone, without the platform.
                                                         otherwise noted and passed
     6  otherwise                                      -> ALLOW
 
-BLOCK never means decline: a person decides, without leaning on the model.
-REVIEW means a person decides with the model's answer in front of them. The
-criticality score orders the REVIEW queue and is never a condition here.
+BLOCK means a person decides without leaning on the model. REVIEW means a
+person decides with the model's answer in front of them. The criticality score
+orders the REVIEW queue and is never a condition here.
+
+Until 0.2.x the rules were called rows, after the decision table they form.
+``Decision.row`` and the ``row`` key of a trace entry remain readable in this
+release as aliases of ``rule``; they go in 1.0.
 """
 from __future__ import annotations
 
@@ -53,6 +57,8 @@ CERTIFIED = "CERTIFIED"
 REASON_CODES = (ENVELOPE_INVALID, OOD_EXTREME, OOD_INPUT, EMPTY_SET, SET_AMBIGUOUS,
                 PD_UPPER_EXCEEDS_CEILING, DRIFT_WATCH, CERTIFIED)
 
+N_RULES = 6
+
 
 @dataclass(frozen=True)
 class Policy:
@@ -64,15 +70,15 @@ class Policy:
     name: str = "policy"
     version: str = "1"
     alpha: float = 0.05
-    credibility_floor: float = 0.01        # row 2
-    credibility_extreme: float = 0.001     # row 2, the extreme floor
-    invalid_action: str = BLOCK            # row 1
-    ood_action: str = REVIEW               # row 2, below the floor
-    ood_extreme_action: str = BLOCK        # row 2, below the extreme floor
-    watch_action: str = "INFO"             # row 5: REVIEW, or INFO to note and pass
-    bracket_on: bool = True                # row 4 is read only when the bracket is on
-    pd_upper_allow_max: float | None = None  # row 4 ceiling on p1; None disables the row
-    approve_label: int | None = 0          # the approve-side label for row 4; None disables the row
+    credibility_floor: float = 0.01        # rule 2
+    credibility_extreme: float = 0.001     # rule 2, the extreme floor
+    invalid_action: str = BLOCK            # rule 1
+    ood_action: str = REVIEW               # rule 2, below the floor
+    ood_extreme_action: str = BLOCK        # rule 2, below the extreme floor
+    watch_action: str = "INFO"             # rule 5: REVIEW, or INFO to note and pass
+    bracket_on: bool = True                # rule 4 is read only when the bracket is on
+    pd_upper_allow_max: float | None = None  # rule 4 ceiling on p1; None disables the rule
+    approve_label: int | None = 0          # the approve-side label for rule 4; None disables the rule
 
     def __post_init__(self):
         for name in ("invalid_action", "ood_action", "ood_extreme_action"):
@@ -98,7 +104,7 @@ class Envelope:
     """The certified quantities of one decision, as the engine computed them."""
     credibility: float                       # label-free conformal p-value of the input (credibility.py)
     prediction_set: tuple                    # labels left standing (conformal.py, fairness.py)
-    predicted_label: int | None = None       # the model's answer, for row 4
+    predicted_label: int | None = None       # the model's answer, for rule 4
     bracket: tuple | None = None             # (p0, p1) from venn_abers.py, or None when off
     drift_state: str = "OK"                  # OK, WATCH or ALARM on this segment's stream
     guarantee_state: str = ACTIVE            # section 8.1 state
@@ -124,22 +130,52 @@ class Envelope:
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 
+def trace_text(rule: int) -> str:
+    """The route-trace sentence written on the certificate for the rule that fired."""
+    rule = int(rule)
+    if rule == 1:
+        return "Route trace: rule 1 fired."
+    if rule == 2:
+        return "Route trace: rule 1 passed; rule 2 fired."
+    passed = "rules 1 and 2" if rule == 3 else f"rules 1 to {rule - 1}"
+    if rule == N_RULES:
+        return f"Route trace: {passed} passed; rule {rule} allows."
+    return f"Route trace: {passed} passed; rule {rule} fired."
+
+
+class _TraceEntry(dict):
+    """One rule read, as a plain dict with ``rule``; ``row`` stays readable as an alias."""
+
+    def __getitem__(self, key):
+        if key == "row":
+            key = "rule"
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        if key == "row":
+            key = "rule"
+        return super().get(key, default)
+
+
 @dataclass(frozen=True)
 class Decision:
     route: str
-    row: int
+    rule: int                              # the rule that fired, 1 to 6
     reason_codes: tuple
     certificate_reasons: tuple
-    route_trace: tuple = field(default_factory=tuple)   # one entry per row read, in order
+    route_trace: tuple = field(default_factory=tuple)   # one entry per rule read, in order
+
+    @property
+    def row(self) -> int:
+        """Deprecated alias of ``rule``; removed in 1.0."""
+        return self.rule
 
     def trace_text(self) -> str:
         """The sentence written on the certificate."""
-        if self.row == 1:
-            return "Route trace: row 1 matched."
-        return f"Route trace: row {self.row} matched, so every check above it passed."
+        return trace_text(self.rule)
 
     def as_dict(self) -> dict:
-        return {"route": self.route, "row": self.row,
+        return {"route": self.route, "rule": self.rule,
                 "reason_codes": list(self.reason_codes),
                 "certificate_reasons": list(self.certificate_reasons),
                 "route_trace": [dict(t) for t in self.route_trace]}
@@ -150,13 +186,13 @@ def _fmt(x: float) -> str:
 
 
 def evaluate(policy: Policy, env: Envelope) -> Decision:
-    """Route one decision. First row that fires wins; rows below it are not read."""
+    """Route one decision. First rule that fires wins; rules below it are not read."""
     trace = []
 
-    def read(row: int, check: str, value, fired: bool):
-        trace.append({"row": row, "check": check, "value": value, "fired": fired})
+    def read(rule: int, check: str, value, fired: bool):
+        trace.append(_TraceEntry(rule=rule, check=check, value=value, fired=fired))
 
-    # row 1: is the guarantee claimed on this segment right now?
+    # rule 1: is the guarantee claimed on this segment right now?
     suspended = env.guarantee_state == SUSPENDED or env.drift_state == "ALARM"
     read(1, "guarantee active on this segment", env.guarantee_state if env.drift_state != "ALARM" else "ALARM", suspended)
     if suspended:
@@ -164,7 +200,7 @@ def evaluate(policy: Policy, env: Envelope) -> Decision:
         return Decision(policy.invalid_action, 1, (ENVELOPE_INVALID,),
                         (f"{why}; the guarantee is not claimed for this decision",), tuple(trace))
 
-    # row 2: does the guarantee cover this input?
+    # rule 2: does the guarantee cover this input?
     below_extreme = env.credibility < policy.credibility_extreme
     below_floor = env.credibility < policy.credibility_floor
     read(2, f"credibility p-value at or above the floor {policy.credibility_floor:g}", env.credibility, below_floor)
@@ -177,7 +213,7 @@ def evaluate(policy: Policy, env: Envelope) -> Decision:
                         (f"input outside the scope of the guarantee: credibility {_fmt(env.credibility)} "
                          f"below the floor {policy.credibility_floor:g}",), tuple(trace))
 
-    # row 3: did the certified set single out one answer?
+    # rule 3: did the certified set single out one answer?
     k = len(env.prediction_set)
     read(3, "prediction set is a singleton", list(env.prediction_set), k != 1)
     if k == 0:
@@ -188,10 +224,10 @@ def evaluate(policy: Policy, env: Envelope) -> Decision:
         return Decision(REVIEW, 3, (SET_AMBIGUOUS,),
                         (f"{k} labels left standing: the model cannot separate them for this case",), tuple(trace))
 
-    # row 4: on the approve side, is the upper end of the bracket within the ceiling?
-    row4_on = (policy.bracket_on and env.bracket is not None and policy.pd_upper_allow_max is not None
-               and policy.approve_label is not None and env.predicted_label == policy.approve_label)
-    if row4_on:
+    # rule 4: on the approve side, is the upper end of the bracket within the ceiling?
+    rule4_on = (policy.bracket_on and env.bracket is not None and policy.pd_upper_allow_max is not None
+                and policy.approve_label is not None and env.predicted_label == policy.approve_label)
+    if rule4_on:
         p1 = env.bracket[1]
         fired = p1 > policy.pd_upper_allow_max
         read(4, f"bracket upper end at or below the ceiling {policy.pd_upper_allow_max:g}", p1, fired)
@@ -202,7 +238,7 @@ def evaluate(policy: Policy, env: Envelope) -> Decision:
     else:
         read(4, "bracket ceiling (not read: bracket off, no ceiling, or not an approve-side prediction)", None, False)
 
-    # row 5: is the stream on WATCH?
+    # rule 5: is the stream on WATCH?
     watch = env.drift_state == "WATCH"
     fired = watch and policy.watch_action == REVIEW
     read(5, "no WATCH on this segment's stream", env.drift_state, fired)
@@ -210,8 +246,8 @@ def evaluate(policy: Policy, env: Envelope) -> Decision:
         return Decision(REVIEW, 5, (DRIFT_WATCH,),
                         ("WATCH on this segment's stream and the policy sends WATCH to a person",), tuple(trace))
 
-    # row 6: every check above passed
-    read(6, "every check above passed", True, True)
+    # rule 6: every rule above passed
+    read(6, "every rule above passed", True, True)
     reasons = ["input within the scope of the guarantee", "one label left standing"]
     if env.cell_n is not None:
         reasons.append(f"{env.cell_n} observations in the cell")
