@@ -60,6 +60,10 @@ in the evaluation repository.
   Tibshirani, 2021), and this package does not claim it.
 - Per-segment coverage holds for each declared segment that has its own
   calibration rows.
+- ALLOW does not mean that 95% of allowed decisions are right: the 95% is
+  shared with the ambiguous cases, which are always covered, so the error rate
+  among single-answer cases can be higher. A bound on the error rate among
+  ALLOW decisions (selective risk control) is planned and not in this release.
 - The martingale's false-alarm bound holds when calibration and production
   rows are exchangeable and the nonconformity score is computed the same way
   on both. The evaluation measured it breaking on sparse one-hot inputs with
