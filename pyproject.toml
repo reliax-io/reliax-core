@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "reliax-core"
-version = "0.2.1"
+version = "0.3.0"
 description = "Method components of the Reliax reliability envelope: split and Mondrian conformal sets, Venn-Abers brackets, a conformal test martingale, the credibility p-value, the fast-loop evaluator with route trace and certificate reasons, kNN distance, PSI, an error auditor, subjective-logic fusion and calibration opinions. Pure functions, no I/O."
 readme = "README.md"
 requires-python = ">=3.10"

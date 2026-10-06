@@ -1,4 +1,4 @@
-"""The six rows fire in order, first match wins, and the result replays exactly."""
+"""The six rules fire in order, first match wins, and the result replays exactly."""
 import pathlib
 import sys
 
@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from reliax_core.evaluator import (  # noqa: E402
-    ALLOW, BLOCK, REVIEW, Decision, Envelope, Policy, evaluate,
+    ALLOW, BLOCK, REVIEW, Decision, Envelope, Policy, evaluate, trace_text,
     ENVELOPE_INVALID, OOD_EXTREME, OOD_INPUT, EMPTY_SET, SET_AMBIGUOUS,
     PD_UPPER_EXCEEDS_CEILING, DRIFT_WATCH, CERTIFIED,
 )
@@ -15,61 +15,85 @@ POL = Policy(name="credit-pd", version="4", alpha=0.05, pd_upper_allow_max=0.12)
 CLEAN = dict(credibility=0.61, prediction_set=(0,), predicted_label=0, bracket=(0.02, 0.05), cell_n=412)
 
 
-def test_row_6_allow_with_reasons():
+def test_rule_6_allow_with_reasons():
     d = evaluate(POL, Envelope(**CLEAN))
-    assert (d.route, d.row, d.reason_codes) == (ALLOW, 6, (CERTIFIED,))
+    assert (d.route, d.rule, d.reason_codes) == (ALLOW, 6, (CERTIFIED,))
     assert d.certificate_reasons == ("input within the scope of the guarantee", "one label left standing",
                                      "412 observations in the cell")
-    assert d.trace_text() == "Route trace: row 6 matched, so every check above it passed."
-    assert [t["row"] for t in d.route_trace] == [1, 2, 3, 4, 5, 6]
+    assert d.trace_text() == "Route trace: rules 1 to 5 passed; rule 6 allows."
+    assert [t["rule"] for t in d.route_trace] == [1, 2, 3, 4, 5, 6]
     assert not any(t["fired"] for t in d.route_trace[:-1])
 
 
-def test_row_1_alarm_blocks_before_anything_else():
+def test_rule_1_alarm_blocks_before_anything_else():
     d = evaluate(POL, Envelope(**{**CLEAN, "drift_state": "ALARM", "credibility": 0.0001, "prediction_set": ()}))
-    assert (d.route, d.row, d.reason_codes) == (BLOCK, 1, (ENVELOPE_INVALID,))
+    assert (d.route, d.rule, d.reason_codes) == (BLOCK, 1, (ENVELOPE_INVALID,))
     assert len(d.route_trace) == 1
+    assert d.trace_text() == "Route trace: rule 1 fired."
     d2 = evaluate(POL, Envelope(**{**CLEAN, "guarantee_state": "suspended"}))
-    assert (d2.route, d2.row) == (BLOCK, 1)
+    assert (d2.route, d2.rule) == (BLOCK, 1)
 
 
-def test_row_1_does_not_fire_on_the_claimed_states():
+def test_rule_1_does_not_fire_on_the_claimed_states():
     for state in ("under estimated covariate shift", "outcome recheck pending"):
         assert evaluate(POL, Envelope(**{**CLEAN, "guarantee_state": state})).route == ALLOW
 
 
-def test_row_2_floor_and_extreme():
+def test_rule_2_floor_and_extreme():
     d = evaluate(POL, Envelope(**{**CLEAN, "credibility": 0.005}))
-    assert (d.route, d.row, d.reason_codes) == (REVIEW, 2, (OOD_INPUT,))
+    assert (d.route, d.rule, d.reason_codes) == (REVIEW, 2, (OOD_INPUT,))
+    assert d.trace_text() == "Route trace: rule 1 passed; rule 2 fired."
     d = evaluate(POL, Envelope(**{**CLEAN, "credibility": 0.0005}))
-    assert (d.route, d.row, d.reason_codes) == (BLOCK, 2, (OOD_EXTREME,))
+    assert (d.route, d.rule, d.reason_codes) == (BLOCK, 2, (OOD_EXTREME,))
     pol = Policy(ood_action=BLOCK, ood_extreme_action=BLOCK)
     assert evaluate(pol, Envelope(**{**CLEAN, "credibility": 0.005})).route == BLOCK
 
 
-def test_row_3_empty_and_ambiguous():
+def test_rule_3_empty_and_ambiguous():
     d = evaluate(POL, Envelope(**{**CLEAN, "prediction_set": ()}))
-    assert (d.route, d.row, d.reason_codes) == (REVIEW, 3, (EMPTY_SET,))
+    assert (d.route, d.rule, d.reason_codes) == (REVIEW, 3, (EMPTY_SET,))
     d = evaluate(POL, Envelope(**{**CLEAN, "prediction_set": (0, 1)}))
-    assert (d.route, d.row, d.reason_codes) == (REVIEW, 3, (SET_AMBIGUOUS,))
+    assert (d.route, d.rule, d.reason_codes) == (REVIEW, 3, (SET_AMBIGUOUS,))
+    assert d.trace_text() == "Route trace: rules 1 and 2 passed; rule 3 fired."
 
 
-def test_row_4_ceiling_only_on_the_approve_side():
+def test_rule_4_ceiling_only_on_the_approve_side():
     d = evaluate(POL, Envelope(**{**CLEAN, "bracket": (0.04, 0.21)}))
-    assert (d.route, d.row, d.reason_codes) == (REVIEW, 4, (PD_UPPER_EXCEEDS_CEILING,))
+    assert (d.route, d.rule, d.reason_codes) == (REVIEW, 4, (PD_UPPER_EXCEEDS_CEILING,))
+    assert d.trace_text() == "Route trace: rules 1 to 3 passed; rule 4 fired."
     # a decline-side prediction is not held to the approve ceiling
     d = evaluate(POL, Envelope(**{**CLEAN, "bracket": (0.4, 0.9), "predicted_label": 1}))
     assert d.route == ALLOW and d.route_trace[3]["fired"] is False
-    # bracket off: row 4 is not read
+    # bracket off: rule 4 is not read
     assert evaluate(Policy(bracket_on=False, pd_upper_allow_max=0.12), Envelope(**{**CLEAN, "bracket": (0.4, 0.9)})).route == ALLOW
 
 
-def test_row_5_watch_by_policy():
+def test_rule_5_watch_by_policy():
     env = Envelope(**{**CLEAN, "drift_state": "WATCH"})
     d = evaluate(POL, env)
     assert d.route == ALLOW and "WATCH on the stream, noted, not routed on" in d.certificate_reasons
     d = evaluate(Policy(watch_action=REVIEW, pd_upper_allow_max=0.12), env)
-    assert (d.route, d.row, d.reason_codes) == (REVIEW, 5, (DRIFT_WATCH,))
+    assert (d.route, d.rule, d.reason_codes) == (REVIEW, 5, (DRIFT_WATCH,))
+    assert d.trace_text() == "Route trace: rules 1 to 4 passed; rule 5 fired."
+
+
+def test_trace_text_covers_every_rule():
+    assert [trace_text(r) for r in range(1, 7)] == [
+        "Route trace: rule 1 fired.",
+        "Route trace: rule 1 passed; rule 2 fired.",
+        "Route trace: rules 1 and 2 passed; rule 3 fired.",
+        "Route trace: rules 1 to 3 passed; rule 4 fired.",
+        "Route trace: rules 1 to 4 passed; rule 5 fired.",
+        "Route trace: rules 1 to 5 passed; rule 6 allows.",
+    ]
+
+
+def test_row_remains_a_readable_alias():
+    d = evaluate(POL, Envelope(**CLEAN))
+    assert d.row == d.rule == 6
+    assert d.route_trace[2]["row"] == d.route_trace[2]["rule"] == 3
+    assert d.as_dict()["rule"] == 6 and "row" not in d.as_dict()
+    assert all("rule" in t and "row" not in t for t in d.as_dict()["route_trace"])
 
 
 def test_replay_is_exact():
