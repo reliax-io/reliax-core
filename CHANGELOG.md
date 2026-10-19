@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0 (19 October 2026)
+
+Added `cutoff.py`, the lender's cut-off. `break_even_pd(margin, loss)` is
+PD* = M / (M + L). `guaranteed_cutoff(scores, outcomes, target, delta)` returns
+the loosest cut-off whose default rate among approvals is at most `target`
+with probability at least 1 - `delta` (Learn-then-Test with fixed-sequence
+binomial tests over 41 candidates, starting at the first that approves enough
+cases to reject; a guarantee on exchangeable data, which does not reach below
+the cut-off under which the calibration outcomes were observed).
+`bracket_route(p0, p1, pd_star)` approves below the cut-off, declines above
+it and reviews only a bracket that straddles it. `scipy` is now listed as a
+dependency (scikit-learn already required it). No change to any existing
+component or number.
+
 ## 0.3.0 (6 October 2026)
 
 The routing rules are called rules, not rows. `Decision.rule` replaces
