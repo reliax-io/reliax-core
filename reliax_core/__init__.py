@@ -8,14 +8,15 @@ PSI drift, the error auditor, the composite reliability score (shown by the
 product as the criticality score, 100 minus it), subjective-logic fusion and
 calibration opinions.
 
-Four components carry proofs on exchangeable data: the conformal set, the
-Venn-Abers bracket, the test martingale and the credibility p-value. The
+Five components carry proofs on exchangeable data: the conformal set, the
+Venn-Abers bracket, the test martingale, the credibility p-value and the
+guaranteed cut-off. The
 evaluator, the route trace and the certificate reasons are exact: the same
 inputs give the same route. The others are signals and say so in their module
 docstrings. The Reliax platform (calibration builder, reliability engine,
 queues, audit service, API) holds all state and is not part of this package.
 """
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 from .conformal import ConformalCalibrator
 from .venn_abers import VennAbersCalibrator
@@ -29,6 +30,7 @@ from .sl_fusion import fuse_signals, averaging_fusion
 from .calibration_trust import CalibrationTrust, MARGINAL
 from .credibility import CredibilityReference, credibility_p_value
 from .evaluator import Policy, Envelope, Decision, evaluate, ALLOW, REVIEW, BLOCK
+from .cutoff import break_even_pd, guaranteed_cutoff, bracket_route, three_zones, zone_of
 
 __all__ = [
     "__version__",
@@ -44,4 +46,5 @@ __all__ = [
     "CalibrationTrust", "MARGINAL",
     "CredibilityReference", "credibility_p_value",
     "Policy", "Envelope", "Decision", "evaluate", "ALLOW", "REVIEW", "BLOCK",
+    "break_even_pd", "guaranteed_cutoff", "bracket_route", "three_zones", "zone_of",
 ]

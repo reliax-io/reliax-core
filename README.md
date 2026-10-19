@@ -107,6 +107,7 @@ signals order the review queue and inform recalibration.
 | `venn_abers.py` | `VennAbersCalibrator`: inductive Venn-Abers bracket `[p0, p1]` around the base model's stated probability (Vovk and Petej, 2014). One of the two isotonic predictors is calibrated; the width of the bracket is itself a signal. | guarantee |
 | `martingale.py` | `ConformalMartingale`: conformal test martingale on a label-free nonconformity score, a mixture over betting exponents; anytime-valid, WATCH at 20, ALARM at 100 (Vovk, Nouretdinov and Gammerman, 2003). | guarantee |
 | `credibility.py` | `CredibilityReference`, `credibility_p_value`: the label-free conformal p-value of an input's kNN distance against the calibration distances, `(#{a_i >= a} + 1) / (n + 1)`. Valid under exchangeability; answers "does the guarantee cover this input?". Deterministic, so it replays. | guarantee |
+| `cutoff.py` | `guaranteed_cutoff`: the loosest cut-off on the predicted PD whose default rate among approvals is at most the lender's target, with probability at least `1 - delta` over the calibration set (Learn-then-Test, fixed-sequence binomial tests; Angelopoulos, Bates, Candès, Jordan and Lei, 2021). `three_zones`: approve, review and decline zones around the lender's cut-off, with probability at least `1 - delta` every approved slice of scores defaults at most PD* and every declined slice at least PD* (the guarantee on declines needs outcomes for declined applicants). `break_even_pd`: PD* = M / (M + L). `bracket_route`: the Venn-Abers bracket against the lender's cut-off. | guarantee (`guaranteed_cutoff`), exact (the others) |
 | `evaluator.py` | `Policy`, `Envelope`, `evaluate`: the six routing rules, read in a fixed order, first that fires wins, on certified quantities only; returns the route, the rule that fired, the route trace (every rule read before it), the reason codes and the certificate reasons in words. | exact |
 | `ood.py` | `KNNOODDetector`: distance to the k nearest calibration rows in standardised feature space, as a percentile of the calibration set's own leave-one-out distances. | signal |
 | `auditor.py` | `ErrorAuditor`: a second model, trained on the calibration split, that predicts when the base model is wrong. | signal |
@@ -134,8 +135,11 @@ in the evaluation repository.
   calibration rows.
 - ALLOW does not mean that 95% of allowed decisions are right: the 95% is
   shared with the ambiguous cases, which are always covered, so the error rate
-  among single-answer cases can be higher. A bound on the error rate among
-  ALLOW decisions (selective risk control) is planned and not in this release.
+  among single-answer cases can be higher. What bounds the default rate among
+  approvals is `guaranteed_cutoff`: it holds for the cut-off it returns, and
+  only where the calibration outcomes were observed. If they exist only for
+  applicants approved under an older, stricter cut-off, the bound does not
+  reach below it (selective labels).
 - The martingale's false-alarm bound holds when calibration and production
   rows are exchangeable and the nonconformity score is computed the same way
   on both. The evaluation measured it breaking on sparse one-hot inputs with
