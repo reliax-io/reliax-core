@@ -30,7 +30,7 @@ from .sl_fusion import fuse_signals, averaging_fusion
 from .calibration_trust import CalibrationTrust, MARGINAL
 from .credibility import CredibilityReference, credibility_p_value
 from .evaluator import Policy, Envelope, Decision, evaluate, ALLOW, REVIEW, BLOCK
-from .cutoff import break_even_pd, guaranteed_cutoff, bracket_route
+from .cutoff import break_even_pd, guaranteed_cutoff, bracket_route, three_zones, zone_of
 
 __all__ = [
     "__version__",
@@ -46,5 +46,5 @@ __all__ = [
     "CalibrationTrust", "MARGINAL",
     "CredibilityReference", "credibility_p_value",
     "Policy", "Envelope", "Decision", "evaluate", "ALLOW", "REVIEW", "BLOCK",
-    "break_even_pd", "guaranteed_cutoff", "bracket_route",
+    "break_even_pd", "guaranteed_cutoff", "bracket_route", "three_zones", "zone_of",
 ]

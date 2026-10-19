@@ -76,3 +76,29 @@ def test_inputs_are_checked():
         guaranteed_cutoff([0.1, 0.2], [0], 0.05)
     with pytest.raises(ValueError):
         guaranteed_cutoff([0.1], [0], 1.5)
+
+
+def test_three_zones_hold_both_sides():
+    """Every approved slice at most PD*, every declined slice at least PD*, jointly at 1 - delta."""
+    from reliax_core.cutoff import three_zones, zone_of
+    rng = np.random.default_rng(3)
+    c, pd_star, delta = 0.5, 0.107, 0.05                      # a case at score s defaults with probability c * s
+    cross = pd_star / c                                       # where the true rate c * s meets PD*
+    bad, approve_to, decline_from = 0, [], []
+    for _ in range(300):
+        s, y = _draw(rng, 5000, c)
+        z = three_zones(s, y, pd_star, delta)
+        wrong = False
+        for row in z["slices_table"]:
+            a = 0.0 if row["from"] is None else row["from"]
+            b = 1.0 if row["to"] is None else row["to"]
+            true = c * (a + b) / 2
+            wrong |= (row["zone"] == "approve" and true > pd_star) or (row["zone"] == "decline" and true < pd_star)
+        bad += wrong
+        approve_to.append(z["approve_to"])
+        decline_from.append(z["decline_from"])
+        assert z["approve_to"] is None or z["decline_from"] is None or z["approve_to"] <= z["decline_from"]
+    assert bad / 300 <= delta + 0.02
+    # the review band sits around the true crossing and is not the whole range
+    assert 0.1 < np.mean(approve_to) < cross < np.mean(decline_from) < 0.33
+    assert zone_of(0.01, z) == "approve" and zone_of(0.95, z) == "decline" and zone_of(cross, z) == "review"

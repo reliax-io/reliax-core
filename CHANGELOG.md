@@ -9,6 +9,12 @@ with probability at least 1 - `delta` (Learn-then-Test with fixed-sequence
 binomial tests over 41 candidates, starting at the first that approves enough
 cases to reject; a guarantee on exchangeable data, which does not reach below
 the cut-off under which the calibration outcomes were observed).
+`three_zones(scores, outcomes, pd_star, delta)` guarantees both sides of the
+lender's own cut-off: equal-count slices of the calibration scores, walked from
+the safest up and from the riskiest down with binomial tests at delta / 2
+each, so that with probability at least 1 - delta every approved slice
+defaults at most PD* and every declined slice at least PD*; the band neither
+walk reaches goes to review. `zone_of(score, zones)` places a new case.
 `bracket_route(p0, p1, pd_star)` approves below the cut-off, declines above
 it and reviews only a bracket that straddles it. `scipy` is now listed as a
 dependency (scikit-learn already required it). No change to any existing
